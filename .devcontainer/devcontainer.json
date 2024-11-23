@@ -1,0 +1,19 @@
+{
+  "name": "Nvidia HPC SDK",
+  "image": "nvcr.io/nvidia/nvhpc:24.9-devel-cuda_multi-ubuntu22.04",
+  "runArgs": [
+    "--name=nvhpc-devcontainer",
+    "--hostname=nvhpc-devcontainer",
+    "--gpus=all"
+  ],
+  "postStartCommand": "nvidia-smi",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "eamodio.gitlens",
+        "ms-vscode.cpptools-extension-pack",
+        "streetsidesoftware.code-spell-checker"
+      ]
+    }
+  }
+}
