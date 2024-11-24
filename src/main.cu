@@ -30,7 +30,7 @@ __global__ void compute_distance(float *diffs, float *distances, int test_index)
     sum += diffs[train_index * IMAGE_SIZE + pixel_index];
   }
 
-  distances[test_index * TRAIN_SIZE + train_index] = sqrt(sum);
+  distances[train_index] = sqrt(sum);
 }
 
 int main(int argc, char *argv[])
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
   dim3 threadsPerBlock = dim3(IMAGE_L, IMAGE_W);
 
   // loop through all test data to calculate the distance
-  for (int i = 0; i < TEST_SIZE; i++)
+  for (int test_index = 0; test_index < TEST_SIZE; test_index++)
   {
     float *d_diffs;
     // float *h_diffs;
@@ -96,17 +96,23 @@ int main(int argc, char *argv[])
 
     cudaMalloc(&d_diffs, DIFFS_SIZE);
 
-    compute_diff<<<numBlocks, threadsPerBlock>>>(d_train_images_pixels, d_test_images_pixels, d_diffs, i);
+    compute_diff<<<numBlocks, threadsPerBlock>>>(d_train_images_pixels, d_test_images_pixels, d_diffs, test_index);
     CUDACHECK(cudaPeekAtLastError());
 
     // cudaMallocHost(&h_diffs, DIFFS_SIZE);
     // cudaMemcpy(h_diffs, d_diffs, DIFFS_SIZE, cudaMemcpyDeviceToHost);
 
-    cudaMallocHost(&d_distances, DISTANCES_SIZE);
+    cudaMalloc(&d_distances, DISTANCES_SIZE);
 
-    compute_distance<<<numBlocks, 1>>>(d_diffs, d_distances, i);
+    compute_distance<<<numBlocks, 1>>>(d_diffs, d_distances, test_index);
     CUDACHECK(cudaPeekAtLastError());
 
+    compute_diff<<<numBlocks, threadsPerBlock>>>(d_train_images_pixels, d_test_images_pixels, d_diffs, test_index);
+    // cudaMallocHost(&h_diffs, DIFFS_SIZE);
+    // cudaMemcpy(h_diffs, d_diffs, DIFFS_SIZE, cudaMemcpyDeviceToHost);
+
+    cudaMalloc(&d_distances, DISTANCES_SIZE);
+    compute_distance<<<numBlocks, 1>>>(d_diffs, d_distances, test_index);
     cudaFree(&d_diffs);
 
     cudaMallocHost(&h_distances, DISTANCES_SIZE);
@@ -120,14 +126,13 @@ int main(int argc, char *argv[])
     for (unsigned int j = 1; j < TRAIN_SIZE; j++)
     {
       float distance = h_distances[j];
-      std::cout << "i: " << i << " j: " << j << " best_distance: " << best_distance << " distance: " << distance << std::endl;
       if (distance < best_distance)
       {
         best_index = j;
         best_distance = distance;
       }
 
-      int label = h_test_labels[i];
+      int label = h_test_labels[test_index];
       int prediction = h_train_labels[best_index];
 
       if (label == prediction)
