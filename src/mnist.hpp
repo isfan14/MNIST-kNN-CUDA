@@ -8,8 +8,8 @@
 #define IMAGE_L 28
 #define IMAGE_W 28
 #define IMAGE_SIZE 28 * 28
-#define N_TRAIN 60000
-#define N_TEST 10000
+#define TRAIN_SIZE 60000
+#define TEST_SIZE 10000
 
 uint32_t swap_endian(uint32_t val)
 {
@@ -17,7 +17,7 @@ uint32_t swap_endian(uint32_t val)
   return (val << 16) | (val >> 16);
 }
 
-void read_mnist(const char *image_filename, const char *label_filename, int *images_pixels, char *labels)
+void read_mnist(const char *image_filename, const char *label_filename, int *images_pixels, int *labels)
 {
   // Open files
   std::ifstream image_file(image_filename, std::ios::in | std::ios::binary);
@@ -65,13 +65,15 @@ void read_mnist(const char *image_filename, const char *label_filename, int *ima
   std::cout << "image and label num is: " << num_items << std::endl;
   std::cout << "image rows: " << rows << ", cols: " << cols << std::endl;
 
-  for (int i = 0; i < num_items * rows * cols; i++)
+  for (int i = 0; i < (num_items * rows * cols); i++)
   {
-    image_file.read((char *)&images_pixels[i], 1);
+    image_file.read((char *)(&images_pixels[i]), sizeof(char));
   }
+  std::cout << "images loaded" << std::endl;
 
   for (int i = 0; i < num_items; i++)
   {
-    label_file.read(&labels[i], 1);
+    label_file.read(((char *)&labels[i]), sizeof(char));
   }
+  std::cout << "labels loaded" << std::endl;
 }
