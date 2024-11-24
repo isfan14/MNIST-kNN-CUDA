@@ -1,5 +1,7 @@
-#include "mnist.hpp"
 #include <cub/cub.cuh>
+
+#include "mnist.hpp"
+#include "helper.cu"
 
 __global__ void compute_diff(int *train_images_pixels, int *test_images_pixels, float *diffs, int test_index)
 {
@@ -93,12 +95,18 @@ int main(int argc, char *argv[])
     float *d_distances, *h_distances;
 
     cudaMalloc(&d_diffs, DIFFS_SIZE);
+
     compute_diff<<<numBlocks, threadsPerBlock>>>(d_train_images_pixels, d_test_images_pixels, d_diffs, i);
+    CUDACHECK(cudaPeekAtLastError());
+
     // cudaMallocHost(&h_diffs, DIFFS_SIZE);
     // cudaMemcpy(h_diffs, d_diffs, DIFFS_SIZE, cudaMemcpyDeviceToHost);
 
     cudaMallocHost(&d_distances, DISTANCES_SIZE);
+
     compute_distance<<<numBlocks, 1>>>(d_diffs, d_distances, i);
+    CUDACHECK(cudaPeekAtLastError());
+
     cudaFree(&d_diffs);
 
     cudaMallocHost(&h_distances, DISTANCES_SIZE);
