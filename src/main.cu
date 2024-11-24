@@ -1,4 +1,4 @@
-#include <cub/cub.cuh>
+#include <cmath>
 
 #include "mnist.hpp"
 #include "helper.cu"
@@ -16,7 +16,7 @@ __global__ void compute_diff(int *train_images_pixels, int *test_images_pixels, 
   int trainPixel = train_images_pixels[train_pixel_index];
   int testPixel = test_images_pixels[test_pixel_index];
 
-  float diff = ((trainPixel - testPixel) / 256) ^ 2;
+  float diff = pow((float)(trainPixel - testPixel) / 256, 2);
   diffs[diff_index] = diff;
 }
 
@@ -74,10 +74,7 @@ int main(int argc, char *argv[])
   cudaFreeHost(h_train_images_pixels);
   cudaFreeHost(h_test_images_pixels);
 
-  // allocate device memory to hold distances data
-  // cudaMalloc((void **)&d_test_diffs, TEST_DIFFS_SIZE);
-  // cudaMalloc((void **)&d_test_distances, TEST_DISTANCES_SIZE);
-
+  unsigned int true_prediction = 0;
   // define number of blocks
   // each block handle 1 train image
   int numBlocks = TRAIN_SIZE;
@@ -91,7 +88,6 @@ int main(int argc, char *argv[])
   for (int test_index = 0; test_index < TEST_SIZE; test_index++)
   {
     float *d_diffs;
-    // float *h_diffs;
     float *d_distances, *h_distances;
 
     cudaMalloc((void **)&d_diffs, DIFFS_SIZE);
@@ -99,12 +95,15 @@ int main(int argc, char *argv[])
     compute_diff<<<numBlocks, threadsPerBlock>>>(d_train_images_pixels, d_test_images_pixels, d_diffs, test_index);
     CUDACHECK(cudaPeekAtLastError());
 
-    // cudaMallocHost(&h_diffs, DIFFS_SIZE);
-    // cudaMemcpy(h_diffs, d_diffs, DIFFS_SIZE, cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
+    CUDACHECK(cudaPeekAtLastError());
 
     cudaMalloc((void **)&d_distances, DISTANCES_SIZE);
 
     compute_distance<<<numBlocks, 1>>>(d_diffs, d_distances, test_index);
+    CUDACHECK(cudaPeekAtLastError());
+
+    cudaDeviceSynchronize();
     CUDACHECK(cudaPeekAtLastError());
 
     cudaMallocHost((void **)&h_distances, DISTANCES_SIZE);
@@ -113,7 +112,6 @@ int main(int argc, char *argv[])
     cudaFree(d_diffs);
     cudaFree(d_distances);
 
-    unsigned int true_prediction = 0;
     unsigned int best_index = 0;
     float best_distance = h_distances[best_index];
 
@@ -126,28 +124,22 @@ int main(int argc, char *argv[])
         best_index = j;
         best_distance = distance;
       }
-
-      int label = h_test_labels[test_index];
-      int prediction = h_train_labels[best_index];
-
-      if (label == prediction)
-      {
-        true_prediction++;
-      }
-
-      // std::cout << "i: " << j << " label: " << label << " prediction: " << prediction << " distance: " << best_distance << std::endl;
     }
 
-    std::cout << "true predictions: " << true_prediction << " percentage: " << true_prediction / TEST_SIZE * 100 << std::endl;
+    int label = h_test_labels[test_index];
+    int prediction = h_train_labels[best_index];
 
-    // for (int j = 0; j < 10; j++)
-    // {
-    //   std::cout << "i: " << i << " j: " << j << " d: " << h_diffs[j] << std::endl;
-    // }
+    if (label == prediction)
+    {
+      true_prediction++;
+    }
+
+    // std::cout << "i: " << test_index << " label: " << label << " prediction: " << prediction << " distance: " << best_distance << std::endl;
 
     cudaFreeHost(h_distances);
-    // cudaFreeHost(h_diffs);
   }
+
+  std::cout << "true predictions: " << true_prediction << " percentage: " << true_prediction / TEST_SIZE * 100 << std::endl;
 
   // free mnist data from device memory
   cudaFree(d_train_images_pixels);
