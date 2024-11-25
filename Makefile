@@ -1,11 +1,21 @@
-build: ./src/helper.cu ./src/helper.cuh ./src/mnist.hpp ./src/main.cu Makefile
-	mkdir -p out
-	nvcc ./src/main.cu -o ./out/main
+SOURCES := $(wildcard src/*/main.cu)
+GLOBAL_CPP_UTILS := $(wildcard src/utils/*.cpp)
+GLOBAL_CUDA_UTILS := $(wildcard src/utils/*.cu)
+OUTPUTS := $(SOURCES:src/%/main.cu=out/%.o)
 
-run:
-	./out/main
+all: out logs $(OUTPUTS)
 
-all: clean build run
+out logs:
+	mkdir -p $@
 
 clean:
-	rm -rf ./out
+	rm -f out/*
+
+.SECONDEXPANSION:
+
+LOCAL_CPP_UTILS := $$(wildcard src/%/utils/*.cpp)
+LOCAL_CUDA_UTILS := $(wildcard src/%/utils/*.cu)
+
+$(OUTPUTS): out/%.o: $(GLOBAL_CPP_UTILS) $(GLOBAL_CUDA_UTILS) $(LOCAL_CPP_UTILS) $(LOCAL_CUDA_UTILS) src/%/main.cu
+	nvcc $^ -o $@
+

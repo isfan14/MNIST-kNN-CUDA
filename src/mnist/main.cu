@@ -1,7 +1,36 @@
 #include <cmath>
 
-#include "mnist.hpp"
-#include "helper.cu"
+#include "../utils/mnist.hpp"
+#include "../utils/helper.cuh"
+
+__global__ void compute_diffs(float *test_images, float *train_images, float *diffs)
+{
+  int test_image_idx = blockIdx.x;
+  int train_image_idx = blockIdx.y;
+  int diff_image_idx = train_image_idx * TEST_SIZE + test_image_idx;
+
+  int test_pixel_idx = test_image_idx * IMAGE_SIZE + threadIdx.y * IMAGE_W + threadIdx.x;
+  int train_pixel_idx = train_image_idx * IMAGE_SIZE + threadIdx.y * IMAGE_W + threadIdx.x;
+  int diff_pixel_idx = diff_image_idx * IMAGE_SIZE + threadIdx.y * IMAGE_W + threadIdx.x;
+
+  diffs[diff_pixel_idx] = pow((test_images[test_pixel_idx] - train_images[train_pixel_idx]) / 256.0, 2);
+}
+
+__global__ void compute_distances(float *diffs, float *distances)
+{
+  int test_image_idx = blockIdx.x;
+  int train_image_idx = blockIdx.y;
+  int diff_image_idx = train_image_idx * TEST_SIZE + test_image_idx;
+
+  float sum = 0.0f;
+
+  for (int i = 0; i < IMAGE_SIZE; i++)
+  {
+    sum += diffs[diff_image_idx + i];
+  }
+
+  distances[diff_image_idx] = sqrt(sum);
+}
 
 __global__ void compute_diff(int *train_images_pixels, int *test_images_pixels, float *diffs, int test_index)
 {
@@ -84,34 +113,47 @@ int main(int argc, char *argv[])
   // each thread handle 1 pixel of distance calculation
   dim3 threadsPerBlock = dim3(IMAGE_L, IMAGE_W);
 
+  float elapsed_time_ms;
+
+  // some events to count the execution time
+  cudaEvent_t start, stop;
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+
+  // start to count execution time of GPU version
+  cudaEventRecord(start, 0);
+
   // loop through all test data to calculate the distance
   for (int test_index = 0; test_index < TEST_SIZE; test_index++)
   {
-    float *d_diffs;
-    float *d_distances, *h_distances;
+    float *d_diffs, *d_distances, *h_distances;
 
     cudaMalloc((void **)&d_diffs, DIFFS_SIZE);
+    cudaMalloc((void **)&d_distances, DISTANCES_SIZE);
 
+    cudaMallocHost((void **)&h_distances, DISTANCES_SIZE);
+
+    // 1. compute euclidean distance (distance = sqrt(diff))
+    // 1.1. compute diff (inside of sqrt)
     compute_diff<<<numBlocks, threadsPerBlock>>>(d_train_images_pixels, d_test_images_pixels, d_diffs, test_index);
     CUDACHECK(cudaPeekAtLastError());
 
     cudaDeviceSynchronize();
     CUDACHECK(cudaPeekAtLastError());
 
-    cudaMalloc((void **)&d_distances, DISTANCES_SIZE);
-
+    // 1.2. compute distance
     compute_distance<<<numBlocks, 1>>>(d_diffs, d_distances, test_index);
     CUDACHECK(cudaPeekAtLastError());
 
     cudaDeviceSynchronize();
     CUDACHECK(cudaPeekAtLastError());
 
-    cudaMallocHost((void **)&h_distances, DISTANCES_SIZE);
     cudaMemcpy(h_distances, d_distances, DISTANCES_SIZE, cudaMemcpyDeviceToHost);
 
     cudaFree(d_diffs);
     cudaFree(d_distances);
 
+    // 2. find the closest train image to the current test image
     unsigned int best_index = 0;
     float best_distance = h_distances[best_index];
 
@@ -139,7 +181,17 @@ int main(int argc, char *argv[])
     cudaFreeHost(h_distances);
   }
 
-  std::cout << "true predictions: " << true_prediction << " percentage: " << true_prediction / TEST_SIZE * 100 << std::endl;
+  // time counting terminate
+  cudaEventRecord(stop, 0);
+  cudaEventSynchronize(stop);
+
+  // compute time elapse on GPU computing
+  cudaEventElapsedTime(&elapsed_time_ms, start, stop);
+
+  // compute accuracy
+  float percentage = true_prediction * 100.0 / TEST_SIZE;
+
+  std::cout << "true predictions: " << true_prediction << " percentage: " << percentage << " elapsed: " << elapsed_time_ms << std::endl;
 
   // free mnist data from device memory
   cudaFree(d_train_images_pixels);
