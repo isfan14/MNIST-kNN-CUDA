@@ -14,7 +14,8 @@ __global__ void compute_diff(int *train_images, int *test_images, float *diffs, 
 
   int diff_idx = test_idx * TRAIN_SIZE * IMAGE_SIZE + train_idx * IMAGE_SIZE + pixel_idx;
 
-  diffs[diff_idx] = pow((train_images[train_pixel_idx] - test_images[test_pixel_idx]) / 256.0, 2);
+  int diff = test_images[test_pixel_idx] - train_images[train_pixel_idx];
+  diffs[diff_idx] = diff * diff;
 }
 
 __global__ void compute_distance(float *diffs, float *distances)
