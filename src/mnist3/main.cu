@@ -51,8 +51,6 @@ __global__ void predict(float *distances, size_t *best_idxs)
   best_idxs[test_idx] = tmp_best_idx;
 }
 
-const size_t PREDICTION_BATCH_SIZE = 40;
-
 const size_t TRAIN_IMAGES_SIZE = TRAIN_SIZE * IMAGE_SIZE * sizeof(int);
 const size_t TRAIN_LABELS_SIZE = TRAIN_SIZE * sizeof(int);
 
@@ -113,23 +111,23 @@ int main(int argc, char *argv[])
   cudaEventCreate(&predict_start);
   cudaEventCreate(&end_event);
 
-  float elapsed_time_ms, total_time_ms, grand_total_time_ms;
+  float elapsed_time_ms;
 
-  cudaMalloc((void **)&d_diffs, PREDICTION_BATCH_SIZE * DIFFS_SIZE);
-  cudaMalloc((void **)&d_distances, PREDICTION_BATCH_SIZE * DISTANCES_SIZE);
-  cudaMalloc((void **)&d_best_idxs, PREDICTION_BATCH_SIZE * sizeof(size_t));
-  cudaMallocHost((void **)&h_best_idxs, PREDICTION_BATCH_SIZE * sizeof(size_t));
+  cudaMalloc((void **)&d_diffs, TEST_BATCH_SIZE * DIFFS_SIZE);
+  cudaMalloc((void **)&d_distances, TEST_BATCH_SIZE * DISTANCES_SIZE);
+  cudaMalloc((void **)&d_best_idxs, TEST_BATCH_SIZE * sizeof(size_t));
+  cudaMallocHost((void **)&h_best_idxs, TEST_BATCH_SIZE * sizeof(size_t));
 
   // int batch = 0;
   cudaEventRecord(start_event, 0);
-  for (size_t test_offset = 0; test_offset < TEST_SIZE; test_offset += PREDICTION_BATCH_SIZE)
+  for (size_t test_offset = 0; test_offset < TEST_SIZE; test_offset += TEST_BATCH_SIZE)
   {
     // std::cout << "batch: " << batch++ << " offset: " << test_offset << std::endl;
     // 1. compute euclidean distance (distance = sqrt(diff))
     // 1.1. compute diff (inside of sqrt)
     // std::cout << "computing diffs : ";
     // cudaEventRecord(diff_start, 0);
-    compute_diff<<<dim3(TRAIN_SIZE, PREDICTION_BATCH_SIZE), IMAGE_SIZE>>>(d_train_images_pixels, d_test_images_pixels, d_diffs, test_offset);
+    compute_diff<<<dim3(TRAIN_SIZE, TEST_BATCH_SIZE), IMAGE_SIZE>>>(d_train_images_pixels, d_test_images_pixels, d_diffs, test_offset);
     CUDACHECK(cudaPeekAtLastError());
 
     // cudaEventRecord(distance_start, 0);
@@ -139,7 +137,7 @@ int main(int argc, char *argv[])
 
     // 1.2. compute distance
     // std::cout << "computing dist. : ";
-    compute_distance<<<dim3(TRAIN_SIZE, PREDICTION_BATCH_SIZE), 1>>>(d_diffs, d_distances);
+    compute_distance<<<dim3(TRAIN_SIZE, TEST_BATCH_SIZE), 1>>>(d_diffs, d_distances);
     CUDACHECK(cudaPeekAtLastError());
 
     // cudaEventRecord(predict_start, 0);
@@ -148,9 +146,9 @@ int main(int argc, char *argv[])
     // std::cout << elapsed_time_ms << "ms" << std::endl;
 
     // 2. find the closest train image to the current test image
-    cudaMemset(d_best_idxs, 0, PREDICTION_BATCH_SIZE * sizeof(size_t));
+    cudaMemset(d_best_idxs, 0, TEST_BATCH_SIZE * sizeof(size_t));
     // std::cout << "predicting      : ";
-    predict<<<dim3(1, PREDICTION_BATCH_SIZE), 1>>>(d_distances, d_best_idxs);
+    predict<<<dim3(1, TEST_BATCH_SIZE), 1>>>(d_distances, d_best_idxs);
     CUDACHECK(cudaPeekAtLastError());
 
     // cudaEventRecord(end_event, 0);
@@ -159,9 +157,9 @@ int main(int argc, char *argv[])
     // std::cout << elapsed_time_ms << "ms" << std::endl;
     // std::cout << std::endl;
 
-    cudaMemcpy(h_best_idxs, d_best_idxs, PREDICTION_BATCH_SIZE * sizeof(size_t), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_best_idxs, d_best_idxs, TEST_BATCH_SIZE * sizeof(size_t), cudaMemcpyDeviceToHost);
 
-    for (size_t test_idx = 0; test_idx < PREDICTION_BATCH_SIZE; test_idx++)
+    for (size_t test_idx = 0; test_idx < TEST_BATCH_SIZE; test_idx++)
     {
       label = h_test_labels[test_offset + test_idx];
       prediction = h_train_labels[h_best_idxs[test_idx]];

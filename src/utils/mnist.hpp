@@ -10,6 +10,8 @@
 #define IMAGE_SIZE 28 * 28
 #define TRAIN_SIZE 60000
 #define TEST_SIZE 10000
+#define TRAIN_BATCH_SIZE 40
+#define TEST_BATCH_SIZE 40
 
 uint32_t swap_endian(uint32_t val)
 {
