@@ -30,7 +30,7 @@ void read_mnist(const char *image_filename, const char *label_filename, int *ima
   uint32_t rows;
   uint32_t cols;
 
-  image_file.read(reinterpret_cast<char *>(&magic), 4);
+  image_file.read((char *)(&magic), 4);
   magic = swap_endian(magic);
   if (magic != 2051)
   {
@@ -38,7 +38,7 @@ void read_mnist(const char *image_filename, const char *label_filename, int *ima
     return;
   }
 
-  label_file.read(reinterpret_cast<char *>(&magic), 4);
+  label_file.read((char *)(&magic), 4);
   magic = swap_endian(magic);
   if (magic != 2049)
   {
@@ -46,9 +46,9 @@ void read_mnist(const char *image_filename, const char *label_filename, int *ima
     return;
   }
 
-  image_file.read(reinterpret_cast<char *>(&num_items), 4);
+  image_file.read((char *)(&num_items), 4);
   num_items = swap_endian(num_items);
-  label_file.read(reinterpret_cast<char *>(&num_labels), 4);
+  label_file.read((char *)(&num_labels), 4);
   num_labels = swap_endian(num_labels);
 
   if (num_items != num_labels)
@@ -57,9 +57,9 @@ void read_mnist(const char *image_filename, const char *label_filename, int *ima
     return;
   }
 
-  image_file.read(reinterpret_cast<char *>(&rows), 4);
+  image_file.read((char *)(&rows), 4);
   rows = swap_endian(rows);
-  image_file.read(reinterpret_cast<char *>(&cols), 4);
+  image_file.read((char *)(&cols), 4);
   cols = swap_endian(cols);
 
   std::cout << "image and label num is: " << num_items << std::endl;
