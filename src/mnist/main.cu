@@ -30,13 +30,6 @@ __global__ void compute_distance(float *diffs, float *distances, int test_idx)
   distances[train_idx] = sqrt(sum);
 }
 
-__global__ void predict(int *train_images, int *test_images, float *diffs, float *distances)
-{
-  int test_idx = blockIdx.x;
-  int train_idx = blockIdx.y;
-  int pixel_idx = threadIdx.x;
-}
-
 const size_t TRAIN_IMAGES_SIZE = TRAIN_SIZE * IMAGE_SIZE * sizeof(int);
 const size_t TRAIN_LABELS_SIZE = TRAIN_SIZE * sizeof(int);
 
